@@ -9,6 +9,7 @@ const markdownItAnchor = require('markdown-it-anchor');
 const markdownItTableOfContents = require('markdown-it-table-of-contents');
 const defaultTheme = require('./defaultTheme.js');
 const md = require('../../common/markdown');
+const {toCamelCaseVar, getLastStr} = require('../../common/utils');
 
 // const htmlToPdf = require("html-pdf");
 class exportController extends baseController {
@@ -17,7 +18,7 @@ class exportController extends baseController {
     this.catModel = yapi.getInst(interfaceCatModel);
     this.interModel = yapi.getInst(interfaceModel);
     this.projectModel = yapi.getInst(projectModel);
-    
+
   }
 
   async handleListClass(pid, status) {
@@ -34,7 +35,7 @@ class exportController extends baseController {
         newResult.push(item);
       }
     }
-    
+
     return newResult;
   }
 
@@ -98,6 +99,24 @@ class exportController extends baseController {
           let data = this.handleExistId(list);
           tp = JSON.stringify(data, null, 2);
           ctx.set('Content-Disposition', `attachment; filename=api.json`);
+          return (ctx.body = tp);
+        }
+        case 'js': {
+          let data = this.handleExistId(list);
+          const apiObj = {};
+          data.forEach((result) => {
+            if (Array.isArray(result.list)) {
+              const ret = result.list;
+              ret.forEach((mock) => {
+                let path = mock['path'];
+                let apiKey = toCamelCaseVar(getLastStr(path).replace(/^\//g, ''));
+                apiObj[`${apiKey}`] = path;
+              });
+            }
+          });
+
+          tp = `export default ${JSON.stringify(apiObj, null, 2)}`;
+          ctx.set('Content-Disposition', `attachment; filename=RESTFULURL.js`);
           return (ctx.body = tp);
         }
         default: {

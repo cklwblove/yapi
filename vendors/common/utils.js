@@ -3,6 +3,7 @@ const filter = require('./power-string.js').filter;
 const stringUtils = require('./power-string.js').utils;
 const json5 = require('json5');
 const Ajv = require('ajv');
+
 /**
  * 作用：解析规则串 key ，然后根据规则串的规则以及路径找到在 json 中对应的数据
  * 规则串：$.{key}.{body||params}.{dataPath} 其中 body 为返回数据，params 为请求数据，datapath 为数据的路径
@@ -76,7 +77,7 @@ function handleJson(data, handleValueFn) {
 }
 
 function handleValueWithFilter(context) {
-  return function(match) {
+  return function (match) {
     if (match[0] === '@') {
       return handleMockWord(match);
     } else if (match.indexOf('$.') === 0) {
@@ -145,6 +146,7 @@ exports.joinPath = (domain, joinPath) => {
 function safeArray(arr) {
   return Array.isArray(arr) ? arr : [];
 }
+
 exports.safeArray = safeArray;
 
 exports.isJson5 = function isJson5(json) {
@@ -169,15 +171,15 @@ function isJson(json) {
 
 exports.isJson = isJson;
 
-exports.unbase64 = function(base64Str) {
-    try {
-      return stringUtils.unbase64(base64Str);
-    } catch (err) {
-      return base64Str;
-    }
-  };
+exports.unbase64 = function (base64Str) {
+  try {
+    return stringUtils.unbase64(base64Str);
+  } catch (err) {
+    return base64Str;
+  }
+};
 
-exports.json_parse = function(json) {
+exports.json_parse = function (json) {
   try {
     return JSON.parse(json);
   } catch (err) {
@@ -185,7 +187,7 @@ exports.json_parse = function(json) {
   }
 };
 
-exports.json_format = function(json) {
+exports.json_format = function (json) {
   try {
     return JSON.stringify(JSON.parse(json), null, '   ');
   } catch (e) {
@@ -193,7 +195,7 @@ exports.json_format = function(json) {
   }
 };
 
-exports.ArrayToObject = function(arr) {
+exports.ArrayToObject = function (arr) {
   let obj = {};
   safeArray(arr).forEach(item => {
     obj[item.name] = item.value;
@@ -202,7 +204,7 @@ exports.ArrayToObject = function(arr) {
   return obj;
 };
 
-exports.timeago = function(timestamp) {
+exports.timeago = function (timestamp) {
   let minutes, hours, days, seconds, mouth, year;
   const timeNow = parseInt(new Date().getTime() / 1000);
   seconds = timeNow - timestamp;
@@ -249,7 +251,7 @@ exports.timeago = function(timestamp) {
 };
 
 // json schema 验证器
-exports.schemaValidator = function(schema, params) {
+exports.schemaValidator = function (schema, params) {
   try {
     const ajv = new Ajv({
       format: false,
@@ -272,7 +274,7 @@ exports.schemaValidator = function(schema, params) {
     let message = '';
     if (!valid) {
       localize.zh(validate.errors);
-      message += ajv.errorsText(validate.errors, { separator: '\n' });
+      message += ajv.errorsText(validate.errors, {separator: '\n'});
     }
 
     return {
@@ -285,4 +287,14 @@ exports.schemaValidator = function(schema, params) {
       message: e.message
     };
   }
+};
+
+exports.toCamelCaseVar = function (variable) {
+  return variable.replace(/_+[a-zA-Z]/g,
+    (str, index) => index ? str.substr(-1).toUpperCase() : str);
+};
+
+exports.getLastStr = function (str, symbol = '/') {
+  let len = str.length;
+  return str.substring(str.lastIndexOf(symbol) + 1, len);
 };

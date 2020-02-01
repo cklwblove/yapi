@@ -5,14 +5,24 @@ import PropTypes from 'prop-types';
 import { Table, Icon, Row, Col, Tooltip, message } from 'antd';
 import { Link } from 'react-router-dom';
 import AceEditor from 'client/components/AceEditor/AceEditor';
+import Highlight from 'react-highlight';
 import { formatTime, safeArray } from '../../../../common.js';
+import { toCamelCaseVar, getLastStr } from 'common/utils.js';
 import ErrMsg from '../../../../components/ErrMsg/ErrMsg.js';
 import variable from '../../../../constants/variable';
 import constants from '../../../../constants/variable.js';
 import copy from 'copy-to-clipboard';
 import SchemaTable from '../../../../components/SchemaTable/SchemaTable.js';
 
+const beautify = require('js-beautify').js;
+
 const HTTP_METHOD = constants.HTTP_METHOD;
+
+const beautifyOpts = {
+  indent_size: 2,
+  space_in_empty_paren: true,
+  end_with_newline: true
+};
 
 @connect(state => {
   return {
@@ -29,6 +39,7 @@ class View extends Component {
       enter: false
     };
   }
+
   static propTypes = {
     curData: PropTypes.object,
     currProject: PropTypes.object,
@@ -74,7 +85,7 @@ class View extends Component {
           key: 'example',
           width: 80,
           render(_, item) {
-            return <p style={{ whiteSpace: 'pre-wrap' }}>{item.example}</p>;
+            return <p style={{whiteSpace: 'pre-wrap'}}>{item.example}</p>;
           }
         },
         {
@@ -82,7 +93,7 @@ class View extends Component {
           dataIndex: 'value',
           key: 'value',
           render(_, item) {
-            return <p style={{ whiteSpace: 'pre-wrap' }}>{item.value}</p>;
+            return <p style={{whiteSpace: 'pre-wrap'}}>{item.value}</p>;
           }
         }
       ];
@@ -102,7 +113,7 @@ class View extends Component {
       }
 
       return (
-        <div style={{ display: dataSource.length ? '' : 'none' }} className="colBody">
+        <div style={{display: dataSource.length ? '' : 'none'}} className="colBody">
           <Table
             bordered
             size="small"
@@ -114,6 +125,7 @@ class View extends Component {
       );
     }
   }
+
   res_body(res_body_type, res_body, res_body_is_json_schema) {
     if (res_body_type === 'json') {
       if (res_body_is_json_schema) {
@@ -122,14 +134,14 @@ class View extends Component {
         return (
           <div className="colBody">
             {/* <div id="vres_body_json" style={{ minHeight: h * 16 + 100 }}></div> */}
-            <AceEditor data={res_body} readOnly={true} style={{ minHeight: 600 }} />
+            <AceEditor data={res_body} readOnly={true} style={{minHeight: 600}} />
           </div>
         );
       }
     } else if (res_body_type === 'raw') {
       return (
         <div className="colBody">
-          <AceEditor data={res_body} readOnly={true} mode="text" style={{ minHeight: 300 }} />
+          <AceEditor data={res_body} readOnly={true} mode="text" style={{minHeight: 300}} />
         </div>
       );
     }
@@ -145,7 +157,7 @@ class View extends Component {
             <AceEditor
               data={req_body_other}
               readOnly={true}
-              style={{ minHeight: 300 }}
+              style={{minHeight: 300}}
               mode={req_body_type === 'json' ? 'javascript' : 'text'}
             />
           </div>
@@ -174,7 +186,7 @@ class View extends Component {
         key: 'example',
         width: 80,
         render(_, item) {
-          return <p style={{ whiteSpace: 'pre-wrap' }}>{item.example}</p>;
+          return <p style={{whiteSpace: 'pre-wrap'}}>{item.example}</p>;
         }
       },
       {
@@ -182,7 +194,7 @@ class View extends Component {
         dataIndex: 'value',
         key: 'value',
         render(_, item) {
-          return <p style={{ whiteSpace: 'pre-wrap' }}>{item.value}</p>;
+          return <p style={{whiteSpace: 'pre-wrap'}}>{item.value}</p>;
         }
       }
     ];
@@ -205,6 +217,44 @@ class View extends Component {
     );
   }
 
+  // type
+  // 1.promise 2.await
+  req_query_format(query, type = 'promise') {
+    const funName = toCamelCaseVar(getLastStr(this.props.curData.path).replace(/\//, ''));
+    const method = this.props.curData.method.toLowerCase();
+    const dataSource = {};
+    let strs = `${funName}Func() {` + '\n';
+    let params = `{data}`;
+    if (method !== 'post') {
+      params = `{method: '${method}', data}`;
+    }
+    if (query && query.length) {
+      query.map((item) => {
+        dataSource[item.name] = toCamelCaseVar(item.name);
+      });
+    }
+    let dataStrs = `const data = ${JSON.stringify(dataSource, null, 2)}`;
+    let mockServicesPromise = `this.$services.${funName}(${params})
+      .then((res) => { console.log('接口请求成功：' + JSON.stringify(res, null, 2));})
+      .catch((err) => { console.log('接口请求异常：' + err); })`;
+    if (type === 'await') {
+      strs = `async ${funName}Func() {`;
+      mockServicesPromise = `
+      try {
+         const res = await this.$services.${funName}(${params});
+        if (res) {
+          console.log('接口请求成功：' + JSON.stringify(res, null, 2));
+        }
+      } catch(err) {
+         console.log('接口请求异常：' + err); 
+      }`;
+    }
+
+    strs = strs + dataStrs + '\n' + mockServicesPromise + '\n' + '}';
+
+    return beautify(strs, beautifyOpts);
+  }
+
   countEnter(str) {
     let i = 0;
     let c = 0;
@@ -220,7 +270,7 @@ class View extends Component {
 
   componentDidMount() {
     if (!this.props.curData.title && this.state.init) {
-      this.setState({ init: false });
+      this.setState({init: false});
     }
   }
 
@@ -292,7 +342,7 @@ class View extends Component {
         key: 'example',
         width: 80,
         render(_, item) {
-          return <p style={{ whiteSpace: 'pre-wrap' }}>{item.example}</p>;
+          return <p style={{whiteSpace: 'pre-wrap'}}>{item.example}</p>;
         }
       },
       {
@@ -300,7 +350,7 @@ class View extends Component {
         dataIndex: 'desc',
         key: 'desc',
         render(_, item) {
-          return <p style={{ whiteSpace: 'pre-wrap' }}>{item.desc}</p>;
+          return <p style={{whiteSpace: 'pre-wrap'}}>{item.desc}</p>;
         }
       }
     ];
@@ -330,7 +380,7 @@ class View extends Component {
         key: 'example',
         width: '80px',
         render(_, item) {
-          return <p style={{ whiteSpace: 'pre-wrap' }}>{item.example}</p>;
+          return <p style={{whiteSpace: 'pre-wrap'}}>{item.example}</p>;
         }
       },
       {
@@ -338,7 +388,7 @@ class View extends Component {
         dataIndex: 'desc',
         key: 'desc',
         render(_, item) {
-          return <p style={{ whiteSpace: 'pre-wrap' }}>{item.desc}</p>;
+          return <p style={{whiteSpace: 'pre-wrap'}}>{item.desc}</p>;
         }
       }
     ];
@@ -362,7 +412,7 @@ class View extends Component {
     let methodColor =
       variable.METHOD_COLOR[
         this.props.curData.method ? this.props.curData.method.toLowerCase() : 'get'
-      ];
+        ];
 
     // statusColor = statusColor[this.props.curData.status?this.props.curData.status.toLowerCase():"undone"];
     // const aceEditor = <div style={{ display: this.props.curData.req_body_other && (this.props.curData.req_body_type !== "form") ? "block" : "none" }} className="colBody">
@@ -372,11 +422,11 @@ class View extends Component {
       methodColor = 'get';
     }
 
-    const { tag, up_time, title, uid, username } = this.props.curData;
+    const {tag, up_time, title, uid, username} = this.props.curData;
 
     let res = (
       <div className="caseContainer">
-        <h2 className="interface-title" style={{ marginTop: 0 }}>
+        <h2 className="interface-title" style={{marginTop: 0}}>
           基本信息
         </h2>
         <div className="panel-view">
@@ -410,16 +460,16 @@ class View extends Component {
             <Col span={8}>{formatTime(up_time)}</Col>
           </Row>
           {safeArray(tag) &&
-            safeArray(tag).length > 0 && (
-              <Row className="row remark">
-                <Col span={4} className="colKey">
-                  Tag ：
-                </Col>
-                <Col span={18} className="colValue">
-                  {tag.join(' , ')}
-                </Col>
-              </Row>
-            )}
+          safeArray(tag).length > 0 && (
+            <Row className="row remark">
+              <Col span={4} className="colKey">
+                Tag ：
+              </Col>
+              <Col span={18} className="colValue">
+                {tag.join(' , ')}
+              </Col>
+            </Row>
+          )}
           <Row className="row">
             <Col span={4} className="colKey">
               接口路径：
@@ -431,7 +481,7 @@ class View extends Component {
               onMouseLeave={this.leaveItem}
             >
               <span
-                style={{ color: methodColor.color, backgroundColor: methodColor.bac }}
+                style={{color: methodColor.color, backgroundColor: methodColor.bac}}
                 className="colValue tag-method"
               >
                 {this.props.curData.method}
@@ -445,7 +495,7 @@ class View extends Component {
                   type="copy"
                   className="interface-url-icon"
                   onClick={() => this.copyUrl(this.props.currProject.basepath + this.props.curData.path)}
-                  style={{ display: this.state.enter ? 'inline-block' : 'none' }}
+                  style={{display: this.state.enter ? 'inline-block' : 'none'}}
                 />
               </Tooltip>
             </Col>
@@ -461,47 +511,47 @@ class View extends Component {
                 onClick={() =>
                   window.open(
                     location.protocol +
-                      '//' +
-                      location.hostname +
-                      (location.port !== '' ? ':' + location.port : '') +
-                      `/mock/${this.props.currProject._id}${this.props.currProject.basepath}${
-                        this.props.curData.path
-                      }`,
+                    '//' +
+                    location.hostname +
+                    (location.port !== '' ? ':' + location.port : '') +
+                    `/mock/${this.props.currProject._id}${this.props.currProject.basepath}${
+                      this.props.curData.path
+                    }`,
                     '_blank'
                   )
                 }
               >
                 {location.protocol +
-                  '//' +
-                  location.hostname +
-                  (location.port !== '' ? ':' + location.port : '') +
-                  `/mock/${this.props.currProject._id}${this.props.currProject.basepath}${
-                    this.props.curData.path
-                  }`}
+                '//' +
+                location.hostname +
+                (location.port !== '' ? ':' + location.port : '') +
+                `/mock/${this.props.currProject._id}${this.props.currProject.basepath}${
+                  this.props.curData.path
+                }`}
               </span>
             </Col>
           </Row>
           {this.props.curData.custom_field_value &&
-            this.props.custom_field.enable && (
-              <Row className="row remark">
-                <Col span={4} className="colKey">
-                  {this.props.custom_field.name}：
-                </Col>
-                <Col span={18} className="colValue">
-                  {this.props.curData.custom_field_value}
-                </Col>
-              </Row>
-            )}
+          this.props.custom_field.enable && (
+            <Row className="row remark">
+              <Col span={4} className="colKey">
+                {this.props.custom_field.name}：
+              </Col>
+              <Col span={18} className="colValue">
+                {this.props.curData.custom_field_value}
+              </Col>
+            </Row>
+          )}
         </div>
         {this.props.curData.desc && <h2 className="interface-title">备注</h2>}
         {this.props.curData.desc && (
           <div
             className="tui-editor-contents"
-            style={{ margin: '0px', padding: '0px 20px', float: 'none' }}
-            dangerouslySetInnerHTML={{ __html: this.props.curData.desc }}
+            style={{margin: '0px', padding: '0px 20px', float: 'none'}}
+            dangerouslySetInnerHTML={{__html: this.props.curData.desc}}
           />
         )}
-        <h2 className="interface-title" style={{ display: requestShow ? '' : 'none' }}>
+        <h2 className="interface-title" style={{display: requestShow ? '' : 'none'}}>
           请求参数
         </h2>
         {req_dataSource.length ? (
@@ -550,16 +600,16 @@ class View extends Component {
                 : 'none'
           }}
         >
-          <h3 style={{ display: bodyShow ? '' : 'none' }} className="col-title">
+          <h3 style={{display: bodyShow ? '' : 'none'}} className="col-title">
             Body:
           </h3>
           {this.props.curData.req_body_type === 'form'
             ? this.req_body_form(this.props.curData.req_body_type, this.props.curData.req_body_form)
             : this.req_body(
-                this.props.curData.req_body_type,
-                this.props.curData.req_body_other,
-                this.props.curData.req_body_is_json_schema
-              )}
+              this.props.curData.req_body_type,
+              this.props.curData.req_body_other,
+              this.props.curData.req_body_is_json_schema
+            )}
         </div>
 
         <h2 className="interface-title">返回数据</h2>
@@ -568,6 +618,41 @@ class View extends Component {
           this.props.curData.res_body,
           this.props.curData.res_body_is_json_schema
         )}
+
+        {this.props.curData.req_query && this.props.curData.req_query.length ? (
+          <div className="colQuery">
+            <h2 className="interface-title">接口请求代码片段</h2>
+            <h4>Promise 写法</h4>
+            <div className="highlight-box">
+              <Highlight languages={['javascript']}>
+                {this.req_query_format(this.props.curData.req_query)}
+              </Highlight>
+              <Tooltip title="复制此代码">
+                <Icon
+                  type="copy"
+                  className="interface-url-icon"
+                  onClick={() => this.copyUrl(this.req_query_format(this.props.curData.req_query))}
+                />
+              </Tooltip>
+            </div>
+            <h4>async/await 写法</h4>
+            <div className="highlight-box">
+              <Highlight languages={['javascript']}>
+                {this.req_query_format(this.props.curData.req_query, 'await')}
+              </Highlight>
+              <Tooltip title="复制此代码">
+                <Icon
+                  type="copy"
+                  className="interface-url-icon"
+                  onClick={() => this.copyUrl(this.req_query_format(this.props.curData.req_query, 'await'))}
+                />
+              </Tooltip>
+            </div>
+          </div>
+        ) : (
+          ''
+        )}
+
       </div>
     );
 
